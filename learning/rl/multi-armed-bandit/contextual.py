@@ -1,3 +1,5 @@
+######################Works########################################
+
 # encoding=utf8
 # pylint: disable=redefined-outer-name
 
@@ -5,11 +7,14 @@
     Author: lipixun
     File Name: contextual.py
     Description:
-
 """
 
 import numpy as np
-import tensorflow as tf
+#import tensorflow as tf
+#tf.compat.v1.MomentumOptimizer
+import tensorflow.compat.v1 as tf
+tf.disable_v2_behavior()
+tf.compat.v1.disable_resource_variables()
 
 class ContextualBandit(object):
     """The contextual bandit
@@ -50,18 +55,24 @@ class Agent(object):
     def __init__(self, banditNum, actionNum):
         """Create a new agent
         """
-        self.state = tf.placeholder(tf.int32, shape=(1,))
+        self.state = v1.placeholder(v1.int32, shape=(1,))
         # A full connected layer
-        W = tf.Variable(tf.random_normal((banditNum, actionNum)))
+        a = tf.random.normal((banditNum, actionNum))
+        W = tf.Variable(a)
+        #weights = tf.trainable_variables()[0] - Old
         b = tf.Variable(tf.zeros(actionNum, ))
-        self.output = tf.nn.sigmoid(tf.nn.xw_plus_b(tf.one_hot(self.state, banditNum), W, b))
+        #self.output = tf.nn.sigmoid(tf.nn.xw_plus_b(tf.one_hot(self.state, banditNum), W, b))
+        self.output = tf.math.sigmoid(tf.compat.v1.nn.xw_plus_b(tf.one_hot(self.state, banditNum), W, b))
+
         # The prediction
         self.prediction = tf.argmax(self.output, axis=1)
         # The train methods
-        self.targetReward = tf.placeholder(tf.float32, shape=(1,))
-        self.actualAction = tf.placeholder(tf.int32, shape=(1,))
-        self.loss = -(tf.log(tf.reduce_sum(self.output * tf.one_hot(self.actualAction, actionNum))) * self.targetReward)
+        self.targetReward = v1.placeholder(v1.float32, shape=(1,))
+        self.actualAction = v1.placeholder(v1.int32, shape=(1,))
+        self.loss = -(tf.math.log(tf.reduce_sum(self.output * tf.one_hot(self.actualAction, actionNum))) * self.targetReward)
         self.updateop = tf.train.AdamOptimizer(learning_rate=1e-3).minimize(self.loss)
+
+        #self.updateop = tf.optimizers.SGD(lr=1e-3).minimize(self.loss, var=tf.Variable(tf.random.normal([1])))
 
     def predict(self, state, session):
         """Predict
@@ -80,7 +91,8 @@ class Agent(object):
 bandit = ContextualBandit()
 agent = Agent(bandit.banditNum, bandit.actionNum)
 
-totalEpisodes = 100000
+#totalEpisodes = 100000
+totalEpisodes = 10000
 totalRewards = np.zeros([bandit.banditNum, bandit.actionNum])
 e = 1e-1
 
@@ -88,7 +100,7 @@ with tf.Session() as session:
     # Init all variables
     session.run(tf.global_variables_initializer())
     # Run training
-    for epoch in xrange(totalEpisodes):
+    for epoch in range(totalEpisodes):
         state = bandit.getState()
         # Choose an action
         if np.random.rand(1) < e:   # pylint: disable=no-member
@@ -102,7 +114,7 @@ with tf.Session() as session:
         # Update the monitor vars
         totalRewards[state, action] += reward
         if epoch % 500 == 0:
-            print "Mean rewards:", totalRewards.mean(axis=1)
+            print ("Mean rewards:", totalRewards.mean(axis=1))
     # Print prediction
     for i in range(bandit.banditNum):
-        print "Prediction of [%d] is [%d]" % (i, agent.predict(i, session))
+        print ("Prediction of [%d] is [%d]" % (i, agent.predict(i, session)))
